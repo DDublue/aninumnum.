@@ -1,0 +1,11 @@
+async def test_health(client):
+    response = await client.get("/health")
+    
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
+
+
+async def test_unknown_route(client):
+    response = await client.get("/unknown-route-please-do-not-use")
+
+    assert response.status_code == 404
