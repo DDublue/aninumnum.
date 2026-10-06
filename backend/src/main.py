@@ -1,16 +1,22 @@
+import httpx
+import uvicorn
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
-
 
 from src.config import settings
 from src.routers import auth
 
 
-import uvicorn
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    app.state.http = httpx.AsyncClient(timeout=10)
+    yield
+    await app.state.http.aclose()
 
 
-app = FastAPI()
+app = FastAPI(lifespan=lifespan)
 
 
 app.add_middleware(
@@ -33,4 +39,4 @@ app.include_router(auth.router)
 
 @app.get("/health")
 async def health_check():
-    return {"healthy": "true"}
+    return {"status": "ok"}

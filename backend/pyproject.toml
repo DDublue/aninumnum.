@@ -1,5 +1,5 @@
 [project]
-name = "backend"
+name = "aninumnum-backend"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
@@ -61,3 +61,8 @@ backend = "backend:main"
 [build-system]
 requires = ["uv_build>=0.12.19,<0.13.0"]
 build-backend = "uv_build"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+asyncio_mode = "auto"
