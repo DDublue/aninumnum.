@@ -35,6 +35,7 @@ pytest-asyncio==1.4.0
 python-dotenv==1.2.3
 python-multipart==0.0.32
 PyYAML==6.0.3
+respx==0.23.1
 rich==15.0.0
 rich-toolkit==0.20.5
 rignore==0.8.1
