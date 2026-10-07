@@ -26,7 +26,7 @@ def save(tokens: TokenResponse) -> str:
 
 
 def get(session_id: str | None) -> StoredTokens | None:
-    return _tokens[session_id] if session_id else None
+    return _tokens.get(session_id) if session_id else None
 
 
 def delete(session_id: str | None) -> None:

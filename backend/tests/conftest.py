@@ -1,5 +1,6 @@
 import httpx
 import os
+import pytest
 import pytest_asyncio
 
 os.environ["SPOTIFY_CLIENT_ID"] = "test-client-id"
@@ -9,6 +10,7 @@ os.environ["SPOTIFY_REDIRECT_URI"] = "http://127.0.0.1:8000/auth/callback"
 
 from src.dependencies import get_http_client
 from src.main import app
+from src.services import token_store
 
 
 @pytest_asyncio.fixture
@@ -19,3 +21,10 @@ async def client():
         async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
             yield ac
     app.dependency_overrides.clear()
+
+
+@pytest.fixture(autouse=True)
+def empty_token_store():
+    token_store._tokens.clear()
+    yield
+    token_store._tokens.clear()
