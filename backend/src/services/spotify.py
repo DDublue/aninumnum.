@@ -2,7 +2,7 @@ import httpx
 from urllib.parse import urlencode
 
 from src.config import settings
-from src.schemas import TokenResponse
+from src.schemas import TokenResponse, SpotifyUser
 
 
 AUTHORIZE_URL = "https://accounts.spotify.com/authorize?"
@@ -44,10 +44,28 @@ async def exchange_code(client: httpx.AsyncClient, code: str) -> TokenResponse:
             auth=(settings.spotify_client_id, settings.spotify_client_secret)
         )
     except httpx.RequestError as e:
-        raise SpotifyAPIError("token exchange", 503, repr(e))
+        raise SpotifyAPIError("token exchange", 503, repr(e)) from e
         
-    
     if response.status_code != 200:
         raise SpotifyAPIError("token exchange", response.status_code, response.text)
     
     return TokenResponse.model_validate(response.json())
+
+
+async def get_current_user(client: httpx.AsyncClient, access_token: str) -> SpotifyUser:
+    headers = {
+        "Authorization": f"Bearer {access_token}" 
+    }
+    
+    try:
+        response = await client.get(
+            url=V1_URL + "/me",
+            headers=headers,
+        )
+    except httpx.RequestError as e:
+        raise SpotifyAPIError("get current user", 503, repr(e)) from e
+
+    if response.status_code != 200:
+        raise SpotifyAPIError("get current user", response.status_code, response.text)
+    
+    return SpotifyUser.model_validate(response.json())
