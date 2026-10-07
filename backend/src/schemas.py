@@ -10,5 +10,6 @@ class TokenResponse(BaseModel):
 
 
 class SpotifyUser(BaseModel):
+    account_id: str
     id: str
     display_name: str | None = None
