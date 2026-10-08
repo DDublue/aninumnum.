@@ -15,7 +15,9 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 @router.get("/login")
-async def login(request: Request):
+async def login(
+    request: Request,
+):
     state = secrets.token_urlsafe() # 32 bytes default
     request.session["oauth_state"] = state
     return RedirectResponse(spotify.build_login_authorize_url(state))
@@ -58,3 +60,15 @@ async def me(
         if e.status_code == 401:
             raise HTTPException(status_code=401, detail="session expired")
         raise HTTPException(status_code=502, detail="Spotify request failed")
+
+
+@router.post("/logout")
+async def logout(
+    request: Request,
+):
+    session_id = request.session.get("session_id")
+    token_store.delete(session_id)
+    request.session.clear()
+    
+    return {"status": "logged out"}
+    

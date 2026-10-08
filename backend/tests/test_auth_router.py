@@ -248,3 +248,16 @@ async def test_rejected_refresh_logs_out(client, fake_exchange, monkeypatch):
 
     assert response.status_code == 401
     assert token_store._tokens == {}
+
+
+# auth logout test
+
+async def test_logout_ends_session(client, fake_exchange):
+    state = await start_login(client)
+    await client.get("/auth/callback", params={"code": "fake-code", "state": state})
+
+    response = await client.post("/auth/logout")
+
+    assert response.status_code == 200
+    assert token_store._tokens == {}
+    assert (await client.get("/auth/me")).status_code == 401
