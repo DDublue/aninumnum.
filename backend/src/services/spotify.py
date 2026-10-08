@@ -41,7 +41,7 @@ async def exchange_code(client: httpx.AsyncClient, code: str) -> TokenResponse:
         response = await client.post(
             url=TOKEN_URL,
             data=form,
-            auth=(settings.spotify_client_id, settings.spotify_client_secret)
+            auth=(settings.spotify_client_id, settings.spotify_client_secret),
         )
     except httpx.RequestError as e:
         raise SpotifyAPIError("token exchange", 503, repr(e)) from e
@@ -69,3 +69,27 @@ async def get_current_user(client: httpx.AsyncClient, access_token: str) -> Spot
         raise SpotifyAPIError("get current user", response.status_code, response.text)
     
     return SpotifyUser.model_validate(response.json())
+
+
+async def refresh_access_token(client: httpx.AsyncClient, refresh_token: str) -> TokenResponse:
+    form = {
+        "grant_type": "refresh_token",
+        "refresh_token": refresh_token
+    }
+    
+    try:
+        response = await client.post(
+            url=TOKEN_URL,
+            data=form,
+            auth=(settings.spotify_client_id, settings.spotify_client_secret),
+        )
+    except httpx.RequestError as e:
+        raise SpotifyAPIError("refresh access token", 503, repr(e)) from e
+
+    if response.status_code != 200:
+        raise SpotifyAPIError("refresh access token", response.status_code, response.text)
+
+    data = response.json()
+    data.setdefault("refresh_token", refresh_token)
+
+    return TokenResponse.model_validate(data)

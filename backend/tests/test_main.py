@@ -1,3 +1,5 @@
+from src.config import settings
+
 async def test_health(client):
     response = await client.get("/health")
     
@@ -15,12 +17,12 @@ async def test_cors_allows_frontend(client):
     response = await client.options(
         "/health",
         headers={
-            "Origin": "http://127.0.0.1:5173",
+            "Origin": settings.cors_origins[0],
             "Access-Control-Request-Method": "GET",
         },
     )
 
-    assert response.headers["access-control-allow-origin"] == "http://127.0.0.1:5173"
+    assert response.headers["access-control-allow-origin"] == settings.cors_origins[0]
     assert response.headers["access-control-allow-credentials"] == "true"
     
     

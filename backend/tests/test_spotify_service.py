@@ -1,7 +1,7 @@
 import httpx
 import pytest
 import respx
-from base64 import b64decode, b64encode, decode, encode
+from base64 import b64decode
 from httpx import Response
 from urllib.parse import parse_qs, urlparse
 
@@ -54,7 +54,7 @@ def test_client_secret_not_in_url():
 # exchange_code tests
 
 @respx.mock
-async def text_exchange_code_returns_tokens():
+async def test_exchange_code_returns_tokens():
     respx.post(spotify.TOKEN_URL).mock(
         return_value=Response(
             200,
