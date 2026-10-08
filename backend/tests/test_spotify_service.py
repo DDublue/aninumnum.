@@ -118,3 +118,39 @@ async def test_exchange_code_sends_basic_auth():
     assert header.startswith("Basic ")
     decoded = b64decode(header.removeprefix("Basic ")).decode()
     assert decoded == f"{settings.spotify_client_id}:{settings.spotify_client_secret}"
+
+
+# refresh_access_token tests
+
+@respx.mock
+async def test_refresh_access_token_sends_correct_body():
+    route = respx.post(spotify.TOKEN_URL).mock(
+        return_value=Response(
+            200,
+            json=TOKEN_JSON
+        )
+    )
+
+    async with httpx.AsyncClient() as http:
+        await spotify.refresh_access_token(http, "old-refresh")
+
+    body = parse_qs(route.calls.last.request.content.decode())
+    assert body["grant_type"] == ["refresh_token"]
+    assert body["refresh_token"] == ["old-refresh"]
+
+
+@respx.mock
+async def test_refresh_access_token_keeps_old_refresh_token_when_omitted():
+    token_json = {k: v for k, v in TOKEN_JSON.items() if k != "refresh_token"}
+    respx.post(spotify.TOKEN_URL).mock(
+        return_value=Response(
+            200,
+            json=token_json
+        )
+    )
+
+    async with httpx.AsyncClient() as http:
+        tokens = await spotify.refresh_access_token(http, "old-refresh")
+
+    assert tokens.access_token == "fake-access"
+    assert tokens.refresh_token == "old-refresh"

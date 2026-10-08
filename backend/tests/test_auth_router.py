@@ -191,5 +191,60 @@ async def test_me_after_login_returns_user(client, fake_exchange, monkeypatch):
 
 async def test_me_without_login_returns_401(client):
     response = await client.get("/auth/me")
-    
+
     assert response.status_code == 401
+
+
+# token refresh tests
+
+async def login_with_expired_token(client):
+    state = await start_login(client)
+    await client.get(
+        "/auth/callback",
+        params={"code": "fake-code", "state": state}
+    )
+    next(iter(token_store._tokens.values())).expires_at = 0
+
+
+async def test_expired_token_is_refreshed_once(client, fake_exchange, monkeypatch):
+    refreshes = []
+    seen_tokens = []
+
+    async def fake_refresh(http, refresh_token):
+        refreshes.append(refresh_token)
+        return TokenResponse(
+            access_token="new-access",
+            token_type="Bearer",
+            expires_in=3600,
+            scope=settings.spotify_scopes,
+            refresh_token="fake-refresh",
+        )
+
+    async def fake_get_current_user(http, access_token):
+        seen_tokens.append(access_token)
+        return SpotifyUser.model_validate(
+            {"account_id": "test-account-id", "id": "user-1"}
+        )
+
+    monkeypatch.setattr(spotify, "refresh_access_token", fake_refresh)
+    monkeypatch.setattr(spotify, "get_current_user", fake_get_current_user)
+
+    await login_with_expired_token(client)
+    await client.get("/auth/me")
+    await client.get("/auth/me")
+
+    assert refreshes == ["fake-refresh"]
+    assert seen_tokens == ["new-access", "new-access"]
+
+
+async def test_rejected_refresh_logs_out(client, fake_exchange, monkeypatch):
+    async def failing_refresh(http, refresh_token):
+        raise spotify.SpotifyAPIError("refresh access token", 400, "invalid_grant")
+
+    monkeypatch.setattr(spotify, "refresh_access_token", failing_refresh)
+
+    await login_with_expired_token(client)
+    response = await client.get("/auth/me")
+
+    assert response.status_code == 401
+    assert token_store._tokens == {}
