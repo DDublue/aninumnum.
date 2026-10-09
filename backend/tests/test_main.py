@@ -1,8 +1,9 @@
 from src.config import settings
 
+
 async def test_health(client):
     response = await client.get("/health")
-    
+
     assert response.status_code == 200
     assert response.json() == {"status": "ok"}
 
@@ -24,8 +25,8 @@ async def test_cors_allows_frontend(client):
 
     assert response.headers["access-control-allow-origin"] == settings.cors_origins[0]
     assert response.headers["access-control-allow-credentials"] == "true"
-    
-    
+
+
 async def test_cors_rejects_unknown_origin(client):
     response = await client.options(
         "/health",
@@ -34,5 +35,5 @@ async def test_cors_rejects_unknown_origin(client):
             "Access-Control-Request-Method": "GET",
         },
     )
-    
+
     assert "access-control-allow-origin" not in response.headers

@@ -28,7 +28,7 @@ def get_params(url: str) -> dict[str, list[str]]:
 def test_spotify_login_authorize_endpoint():
     url = spotify.build_login_authorize_url("test-state")
     parsed_url = urlparse(url)
-    
+
     assert parsed_url.scheme == "https"
     assert parsed_url.netloc == "accounts.spotify.com"
     assert parsed_url.path == "/authorize"
@@ -37,7 +37,7 @@ def test_spotify_login_authorize_endpoint():
 def test_spotify_login_params_all():
     url = spotify.build_login_authorize_url("test-state")
     params = get_params(url)
-    
+
     assert params["client_id"] == [settings.spotify_client_id]
     assert params["redirect_uri"] == [settings.spotify_redirect_uri]
     assert params["scope"] == [settings.spotify_scopes]
@@ -47,7 +47,7 @@ def test_spotify_login_params_all():
 
 def test_client_secret_not_in_url():
     url = spotify.build_login_authorize_url("test-state")
-    
+
     assert settings.spotify_client_secret not in url
 
 
@@ -61,14 +61,14 @@ async def test_exchange_code_returns_tokens():
             json=TOKEN_JSON
         )
     )
-    
+
     async with httpx.AsyncClient() as http:
         tokens = await spotify.exchange_code(http, "fake-code")
-    
+
     assert tokens.access_token == "fake-access"
     assert tokens.refresh_token == "fake-refresh"
     assert tokens.expires_in == 3600
-    
+
 
 @respx.mock
 async def test_exchange_code_raises_on_error():
@@ -78,7 +78,7 @@ async def test_exchange_code_raises_on_error():
             json={"error": "invalid_grant"}
         )
     )
-    
+
     with pytest.raises(spotify.SpotifyAPIError):
         async with httpx.AsyncClient() as http:
             await spotify.exchange_code(http, "bad-code")
@@ -95,13 +95,13 @@ async def test_exchange_code_sends_correct_body():
 
     async with httpx.AsyncClient() as http:
         await spotify.exchange_code(http, "fake-code")
-    
+
     body = parse_qs(route.calls.last.request.content.decode())
     assert body["grant_type"] == ["authorization_code"]
     assert body["code"] == ["fake-code"]
     assert body["redirect_uri"] == [settings.spotify_redirect_uri]
-    
-    
+
+
 @respx.mock
 async def test_exchange_code_sends_basic_auth():
     route = respx.post(spotify.TOKEN_URL).mock(
@@ -113,7 +113,7 @@ async def test_exchange_code_sends_basic_auth():
 
     async with httpx.AsyncClient() as http:
         await spotify.exchange_code(http, "fake-code")
-    
+
     header = route.calls.last.request.headers["authorization"]
     assert header.startswith("Basic ")
     decoded = b64decode(header.removeprefix("Basic ")).decode()

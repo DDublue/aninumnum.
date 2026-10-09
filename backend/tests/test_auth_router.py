@@ -23,7 +23,7 @@ async def start_login(client) -> str:
 @pytest.fixture
 def fake_exchange(monkeypatch) -> list[str]:
     calls = []
-    
+
     async def fake_exchange_code(client: httpx.AsyncClient, code: str) -> TokenResponse:
         calls.append(code)
         return TokenResponse(
@@ -33,7 +33,7 @@ def fake_exchange(monkeypatch) -> list[str]:
             scope=settings.spotify_scopes,
             refresh_token="fake-refresh",
         )
-        
+
     monkeypatch.setattr(spotify, "exchange_code", fake_exchange_code)
     return calls
 
@@ -41,31 +41,31 @@ def fake_exchange(monkeypatch) -> list[str]:
 def fail_exchange(monkeypatch, status_code: int):
     async def failing_exchange(client, code):
         raise spotify.SpotifyAPIError("token exchange", status_code, "boom")
-    
+
     monkeypatch.setattr(spotify, "exchange_code", failing_exchange)
 
-    
+
 # auth login tests
 
 async def test_login_redirects_to_spotify(client):
     response = await client.get("/auth/login")
     location = urlparse(response.headers["location"])
-    
+
     assert response.status_code == 307
     assert location.netloc == "accounts.spotify.com"
     assert location.path == "/authorize"
-    
+
 
 # auth callback tests
 
 async def test_callback_success_redirects_to_frontend(client, fake_exchange):
     state = await start_login(client)
-    
+
     response = await client.get(
         "/auth/callback",
         params={"code": "fake-code", "state": state}
     )
-    
+
     assert response.status_code == 307
     assert response.headers["location"].startswith(settings.frontend_url)
     assert get_error(response.headers["location"]) is None
@@ -74,7 +74,7 @@ async def test_callback_success_redirects_to_frontend(client, fake_exchange):
 
 async def test_callback_success_saves_tokens(client, fake_exchange):
     state = await start_login(client)
-    
+
     response = await client.get(
         "/auth/callback",
         params={"code": "fake-code", "state": state}
@@ -91,12 +91,12 @@ async def test_callback_success_saves_tokens(client, fake_exchange):
 
 async def test_callback_wrong_state_is_rejected(client, fake_exchange):
     await start_login(client)
-    
+
     response = await client.get(
         "/auth/callback",
         params={"code": "fake-code", "state": "wrong"}
     )
-    
+
     assert response.status_code == 307
     assert get_error(response.headers["location"]) == "state_mismatch"
     assert fake_exchange == []
@@ -108,13 +108,13 @@ async def test_callback_without_login_is_rejected(client, fake_exchange):
         "/auth/callback",
         params={"code": "fake-code", "state": "anything"}
     )
-    
+
     assert response.status_code == 307
     assert get_error(response.headers["location"]) == "state_mismatch"
     assert fake_exchange == []
     assert token_store._tokens == {}
 
-    
+
 async def test_callback_cancelled_redirects_to_frontend(client, fake_exchange):
     state = await start_login(client)
 
@@ -169,20 +169,20 @@ async def test_me_after_login_returns_user(client, fake_exchange, monkeypatch):
                 "display_name": "Test User",
             }
         )
-    
+
     monkeypatch.setattr(spotify, "get_current_user", fake_get_current_user)
-    
+
     state = await start_login(client)
     callback = await client.get(
         "/auth/callback",
         params={"code": "fake-code", "state": state}
     )
-    
+
     assert callback.status_code == 307
-    
+
     response = await client.get("/auth/me")
     data = response.json()
-    
+
     assert response.status_code == 200
     assert data["account_id"] == "test-account-id"
     assert data["id"] == "user-1"
@@ -239,7 +239,8 @@ async def test_expired_token_is_refreshed_once(client, fake_exchange, monkeypatc
 
 async def test_rejected_refresh_logs_out(client, fake_exchange, monkeypatch):
     async def failing_refresh(http, refresh_token):
-        raise spotify.SpotifyAPIError("refresh access token", 400, "invalid_grant")
+        raise spotify.SpotifyAPIError(
+            "refresh access token", 400, "invalid_grant")
 
     monkeypatch.setattr(spotify, "refresh_access_token", failing_refresh)
 

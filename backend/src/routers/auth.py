@@ -18,7 +18,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 async def login(
     request: Request,
 ):
-    state = secrets.token_urlsafe() # 32 bytes default
+    state = secrets.token_urlsafe()  # 32 bytes default
     request.session["oauth_state"] = state
     return RedirectResponse(spotify.build_login_authorize_url(state))
 
@@ -34,18 +34,19 @@ async def callback(
     stored_state = request.session.pop("oauth_state", None)
     if state is None or stored_state is None or not secrets.compare_digest(stored_state, state):
         return frontend_direct(error="state_mismatch")
-    
+
     if error or not code:
         return frontend_direct(error=error or "missing_code")
-    
+
     try:
         tokens = await spotify.exchange_code(http, code)
         request.session["session_id"] = token_store.save(tokens)
     except spotify.SpotifyAPIError as e:
         if e.status_code >= 500:
-            raise HTTPException(status_code=502, detail="Spotify is unavailable")
+            raise HTTPException(
+                status_code=502, detail="Spotify is unavailable")
         return frontend_direct(error="token_exchange_failed")
-    
+
     return frontend_direct()
 
 
@@ -69,6 +70,5 @@ async def logout(
     session_id = request.session.get("session_id")
     token_store.delete(session_id)
     request.session.clear()
-    
+
     return {"status": "logged out"}
-    

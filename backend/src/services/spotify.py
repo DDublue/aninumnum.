@@ -36,7 +36,7 @@ async def exchange_code(client: httpx.AsyncClient, code: str) -> TokenResponse:
         "redirect_uri": settings.spotify_redirect_uri,
         "grant_type": "authorization_code"
     }
-    
+
     try:
         response = await client.post(
             url=TOKEN_URL,
@@ -45,18 +45,19 @@ async def exchange_code(client: httpx.AsyncClient, code: str) -> TokenResponse:
         )
     except httpx.RequestError as e:
         raise SpotifyAPIError("token exchange", 503, repr(e)) from e
-        
+
     if response.status_code != 200:
-        raise SpotifyAPIError("token exchange", response.status_code, response.text)
-    
+        raise SpotifyAPIError(
+            "token exchange", response.status_code, response.text)
+
     return TokenResponse.model_validate(response.json())
 
 
 async def get_current_user(client: httpx.AsyncClient, access_token: str) -> SpotifyUser:
     headers = {
-        "Authorization": f"Bearer {access_token}" 
+        "Authorization": f"Bearer {access_token}"
     }
-    
+
     try:
         response = await client.get(
             url=V1_URL + "/me",
@@ -66,8 +67,9 @@ async def get_current_user(client: httpx.AsyncClient, access_token: str) -> Spot
         raise SpotifyAPIError("get current user", 503, repr(e)) from e
 
     if response.status_code != 200:
-        raise SpotifyAPIError("get current user", response.status_code, response.text)
-    
+        raise SpotifyAPIError("get current user",
+                              response.status_code, response.text)
+
     return SpotifyUser.model_validate(response.json())
 
 
@@ -76,7 +78,7 @@ async def refresh_access_token(client: httpx.AsyncClient, refresh_token: str) ->
         "grant_type": "refresh_token",
         "refresh_token": refresh_token
     }
-    
+
     try:
         response = await client.post(
             url=TOKEN_URL,
@@ -87,7 +89,8 @@ async def refresh_access_token(client: httpx.AsyncClient, refresh_token: str) ->
         raise SpotifyAPIError("refresh access token", 503, repr(e)) from e
 
     if response.status_code != 200:
-        raise SpotifyAPIError("refresh access token", response.status_code, response.text)
+        raise SpotifyAPIError("refresh access token",
+                              response.status_code, response.text)
 
     data = response.json()
     data.setdefault("refresh_token", refresh_token)

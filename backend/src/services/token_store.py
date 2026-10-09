@@ -36,4 +36,3 @@ def get(session_id: str | None) -> StoredTokens | None:
 def delete(session_id: str | None) -> None:
     if session_id:
         _tokens.pop(session_id, None)
-

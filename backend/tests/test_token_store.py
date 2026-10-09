@@ -18,7 +18,7 @@ def make_tokens(**overrides) -> TokenResponse:
 async def test_save_then_get_returns_tokens():
     session_id = token_store.save(make_tokens())
     stored = token_store.get(session_id)
-    
+
     assert stored is not None
     assert stored.access_token == "access"
     assert stored.refresh_token == "refresh"
@@ -30,8 +30,7 @@ async def test_get_unknown_id_returns_none():
 
 async def test_delete_removes_tokens():
     session_id = token_store.save(make_tokens())
-    
-    token_store.delete(session_id)
-    
-    assert token_store.get(session_id) is None
 
+    token_store.delete(session_id)
+
+    assert token_store.get(session_id) is None

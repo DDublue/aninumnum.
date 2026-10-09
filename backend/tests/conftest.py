@@ -1,3 +1,6 @@
+from src.services import token_store
+from src.main import app
+from src.dependencies import get_http_client
 import httpx
 import os
 import pytest
@@ -7,10 +10,6 @@ os.environ["SPOTIFY_CLIENT_ID"] = "test-client-id"
 os.environ["SPOTIFY_CLIENT_SECRET"] = "test-client-secret"
 os.environ["SESSION_SECRET_KEY"] = "test-session-secret"
 os.environ["SPOTIFY_REDIRECT_URI"] = "http://127.0.0.1:8000/auth/callback"
-
-from src.dependencies import get_http_client
-from src.main import app
-from src.services import token_store
 
 
 @pytest_asyncio.fixture
