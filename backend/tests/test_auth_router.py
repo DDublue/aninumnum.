@@ -153,8 +153,8 @@ async def test_callback_spotify_server_error_returns_502(client, monkeypatch):
         params={"code": "fake-code", "state": state}
     )
 
-    assert response.status_code == 502
-    assert token_store._tokens == {}
+    assert response.status_code == 307
+    assert get_error(response.headers["location"]) == "spotify_unavailable"
 
 
 # auth me tests

@@ -8,7 +8,7 @@ from src.config import settings
 from src.dependencies import get_access_token, get_http_client
 from src.schemas import SpotifyUser
 from src.services import spotify, token_store
-from src.utils import frontend_direct
+from src.utils import frontend_redirect
 
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -33,21 +33,20 @@ async def callback(
 ):
     stored_state = request.session.pop("oauth_state", None)
     if state is None or stored_state is None or not secrets.compare_digest(stored_state, state):
-        return frontend_direct(error="state_mismatch")
+        return frontend_redirect(error="state_mismatch")
 
     if error or not code:
-        return frontend_direct(error=error or "missing_code")
+        return frontend_redirect(error=error or "missing_code")
 
     try:
         tokens = await spotify.exchange_code(http, code)
         request.session["session_id"] = token_store.save(tokens)
     except spotify.SpotifyAPIError as e:
         if e.status_code >= 500:
-            raise HTTPException(
-                status_code=502, detail="Spotify is unavailable")
-        return frontend_direct(error="token_exchange_failed")
+            return frontend_redirect(error="spotify_unavailable")
+        return frontend_redirect(error="token_exchange_failed")
 
-    return frontend_direct()
+    return frontend_redirect()
 
 
 @router.get("/me")

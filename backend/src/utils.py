@@ -4,8 +4,8 @@ from urllib.parse import urlencode
 from src.config import settings
 
 
-def frontend_direct(**params) -> RedirectResponse:
-    url = settings.frontend_url + "/#"
+def frontend_redirect(**params) -> RedirectResponse:
+    url = settings.frontend_url
     if params:
-        url += urlencode(params)
+        url = url + "/#".rstrip("/") + urlencode(params)
     return RedirectResponse(url)

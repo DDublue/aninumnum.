@@ -15,5 +15,7 @@ class Settings(BaseSettings):
     cors_origins: list[str] = ["http://127.0.0.1:5173"]
     environment: str = "local"
 
+    database_url: str = "sqlite:///./aninumnum.db"
+
 
 settings = Settings()  # pyright: ignore[reportCallIssue]
