@@ -39,7 +39,7 @@ def save(tokens: TokenResponse) -> str:
                 session_id=session_id,
                 access_token=tokens.access_token,
                 refresh_token=tokens.refresh_token,
-                expires_at=current_time,
+                expires_at=current_time + tokens.expires_in,
                 created_at=current_time,
                 last_used_at=current_time,
             )
@@ -50,6 +50,9 @@ def save(tokens: TokenResponse) -> str:
 
 
 def get(session_id: str | None) -> StoredTokens | None:
+    if not session_id:
+        return None
+    
     with SessionLocal() as db:
         row = db.get(StoredSession, session_id)
         if row is None:
@@ -66,15 +69,18 @@ def update(session_id: str, new: TokenResponse) -> None:
         if row is None:
             return
         
-    row.access_token = new.access_token
-    row.expires_at = _now() + new.expires_in
-    if new.refresh_token:
-        row.refresh_token = new.refresh_token
-    row.last_used_at = _now()
-    db.commit()
+        row.access_token = new.access_token
+        row.expires_at = _now() + new.expires_in
+        if new.refresh_token:
+            row.refresh_token = new.refresh_token
+        row.last_used_at = _now()
+        db.commit()
 
 
 def delete(session_id: str | None) -> None:
+    if not session_id:
+        return None
+    
     with SessionLocal() as db:
         row = db.get(StoredSession, session_id)
         if row is not None:

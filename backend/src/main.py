@@ -35,11 +35,11 @@ def create_app():
 
     app.include_router(auth.router)
 
-
     @app.get("/health")
     async def health_check():
         return {"status": "ok"}
     
     return app
+
 
 app = create_app()
