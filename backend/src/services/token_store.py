@@ -14,7 +14,7 @@ class StoredTokens:
     expires_at: int
     
     def is_expired(self, buffer: int = 0) -> bool:
-        return time.time() >= self.expires_at - buffer
+        return _now() >= self.expires_at - buffer
 
 
 def _now() -> int:
