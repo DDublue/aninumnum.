@@ -17,7 +17,13 @@ def app():
 
 
 @pytest_asyncio.fixture
-async def client(app):
+async def http(): # for services
+    async with AsyncClient() as client:
+        yield client
+
+
+@pytest_asyncio.fixture
+async def client(app): # for app/routes
     async with AsyncClient() as http:
         app.dependency_overrides[get_http_client] = lambda: http
         transport = ASGITransport(app=app)

@@ -5,7 +5,6 @@ from base64 import b64decode
 from httpx import Response
 from urllib.parse import parse_qs, urlparse
 
-
 from src.config import settings
 from src.services import spotify
 
@@ -14,7 +13,7 @@ TOKEN_JSON = {
     "access_token": "fake-access",
     "token_type": "Bearer",
     "expires_in": 3600,
-    "scope": "playlist-modify-private",
+    "scope": "playlist-modify-private playlist-modify-public",
     "refresh_token": "fake-refresh",
 }
 
@@ -54,7 +53,7 @@ def test_client_secret_not_in_url():
 # exchange_code tests
 
 @respx.mock
-async def test_exchange_code_returns_tokens():
+async def test_exchange_code_returns_tokens(http):
     respx.post(spotify.TOKEN_URL).mock(
         return_value=Response(
             200,
@@ -62,8 +61,7 @@ async def test_exchange_code_returns_tokens():
         )
     )
 
-    async with httpx.AsyncClient() as http:
-        tokens = await spotify.exchange_code(http, "fake-code")
+    tokens = await spotify.exchange_code(http, "fake-code")
 
     assert tokens.access_token == "fake-access"
     assert tokens.refresh_token == "fake-refresh"
@@ -71,7 +69,7 @@ async def test_exchange_code_returns_tokens():
 
 
 @respx.mock
-async def test_exchange_code_raises_on_error():
+async def test_exchange_code_raises_on_error(http):
     respx.post(spotify.TOKEN_URL).mock(
         return_value=Response(
             400,
@@ -79,13 +77,14 @@ async def test_exchange_code_raises_on_error():
         )
     )
 
-    with pytest.raises(spotify.SpotifyAPIError):
-        async with httpx.AsyncClient() as http:
-            await spotify.exchange_code(http, "bad-code")
+    with pytest.raises(spotify.SpotifyAPIError) as exc_info:
+        await spotify.exchange_code(http, "bad-code")
+
+    assert exc_info.value.status_code == 400
 
 
 @respx.mock
-async def test_exchange_code_sends_correct_body():
+async def test_exchange_code_sends_correct_body(http):
     route = respx.post(spotify.TOKEN_URL).mock(
         return_value=Response(
             200,
@@ -93,8 +92,7 @@ async def test_exchange_code_sends_correct_body():
         )
     )
 
-    async with httpx.AsyncClient() as http:
-        await spotify.exchange_code(http, "fake-code")
+    await spotify.exchange_code(http, "fake-code")
 
     body = parse_qs(route.calls.last.request.content.decode())
     assert body["grant_type"] == ["authorization_code"]
@@ -103,7 +101,7 @@ async def test_exchange_code_sends_correct_body():
 
 
 @respx.mock
-async def test_exchange_code_sends_basic_auth():
+async def test_exchange_code_sends_basic_auth(http):
     route = respx.post(spotify.TOKEN_URL).mock(
         return_value=Response(
             200,
@@ -111,8 +109,7 @@ async def test_exchange_code_sends_basic_auth():
         )
     )
 
-    async with httpx.AsyncClient() as http:
-        await spotify.exchange_code(http, "fake-code")
+    await spotify.exchange_code(http, "fake-code")
 
     header = route.calls.last.request.headers["authorization"]
     assert header.startswith("Basic ")
@@ -120,10 +117,20 @@ async def test_exchange_code_sends_basic_auth():
     assert decoded == f"{settings.spotify_client_id}:{settings.spotify_client_secret}"
 
 
+@respx.mock
+async def test_exchange_code_network_error_is_503(http):
+    respx.post(spotify.TOKEN_URL).mock(side_effect=httpx.ConnectError("down"))
+
+    with pytest.raises(spotify.SpotifyAPIError) as exc_info:
+        await spotify.exchange_code(http, "fake-code")
+
+    assert exc_info.value.status_code == 503
+    
+
 # refresh_access_token tests
 
 @respx.mock
-async def test_refresh_access_token_sends_correct_body():
+async def test_refresh_access_token_sends_correct_body(http):
     route = respx.post(spotify.TOKEN_URL).mock(
         return_value=Response(
             200,
@@ -131,8 +138,7 @@ async def test_refresh_access_token_sends_correct_body():
         )
     )
 
-    async with httpx.AsyncClient() as http:
-        await spotify.refresh_access_token(http, "old-refresh")
+    tokens = await spotify.refresh_access_token(http, "old-refresh")
 
     body = parse_qs(route.calls.last.request.content.decode())
     assert body["grant_type"] == ["refresh_token"]
@@ -140,7 +146,21 @@ async def test_refresh_access_token_sends_correct_body():
 
 
 @respx.mock
-async def test_refresh_access_token_keeps_old_refresh_token_when_omitted():
+async def test_refresh_access_token_uses_rotated_refresh_token(http):
+    respx.post(spotify.TOKEN_URL).mock(
+        return_value=Response(
+            200,
+            json=TOKEN_JSON
+        )
+    )
+
+    tokens = await spotify.refresh_access_token(http, "old-refresh")
+
+    assert tokens.refresh_token == "fake-refresh"
+
+
+@respx.mock
+async def test_refresh_access_token_keeps_old_refresh_token_when_omitted(http):
     token_json = {k: v for k, v in TOKEN_JSON.items() if k != "refresh_token"}
     respx.post(spotify.TOKEN_URL).mock(
         return_value=Response(
@@ -149,8 +169,41 @@ async def test_refresh_access_token_keeps_old_refresh_token_when_omitted():
         )
     )
 
-    async with httpx.AsyncClient() as http:
-        tokens = await spotify.refresh_access_token(http, "old-refresh")
+    tokens = await spotify.refresh_access_token(http, "old-refresh")
 
     assert tokens.access_token == "fake-access"
     assert tokens.refresh_token == "old-refresh"
+
+
+@pytest.mark.parametrize("status", [400, 401, 429, 500, 503])
+@respx.mock
+async def test_refresh_access_token_raises_with_status(http, status):
+    respx.post(spotify.TOKEN_URL).mock(return_value=Response(status, text="boom"))
+
+    with pytest.raises(spotify.SpotifyAPIError) as exc_info:
+        await spotify.refresh_access_token(http, "old-refresh")
+
+    assert exc_info.value.status_code == status
+
+
+# get_current_user tests
+
+@respx.mock
+async def test_get_current_user_sends_bearer_and_parses_user(http):
+    user_json = {
+        "account_id": "acc-1",
+        "id": "user-1",
+        "display_name": "fake-display-name",
+    }
+
+    route = respx.get(spotify.V1_URL + "/me").mock(
+        return_value=Response(
+            200,
+            json=user_json
+        )
+    )
+
+    user = await spotify.get_current_user(http, "fake-access")
+
+    assert route.calls.last.request.headers["authorization"] == "Bearer fake-access"
+    assert user.id == "user-1"
