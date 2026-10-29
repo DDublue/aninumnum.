@@ -1,12 +1,9 @@
 import secrets
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import RedirectResponse
 from httpx import AsyncClient
-from urllib.parse import urlencode
 
-from src.config import settings
-from src.dependencies import get_access_token, get_http_client
-from src.schemas import SpotifyUser
+from src.dependencies import get_http_client
 from src.services import spotify, token_store
 from src.utils import frontend_redirect
 
@@ -45,7 +42,9 @@ async def callback(
         if e.status_code >= 500:
             return frontend_redirect(error="spotify_unavailable")
         return frontend_redirect(error="token_exchange_failed")
-
+    
+    token_store.delete(request.session.get("session_id"))
+    request.session["session_id"] = token_store.save(tokens)
     return frontend_redirect()
 
 
