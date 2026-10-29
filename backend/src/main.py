@@ -7,7 +7,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from src.config import settings
 from src.db import Base, engine
-from src.routers import auth
+from src.routers import auth, spotify
 
 
 def create_app():
@@ -34,6 +34,7 @@ def create_app():
     )
 
     app.include_router(auth.router)
+    app.include_router(spotify.router)
 
     @app.get("/health")
     async def health_check():

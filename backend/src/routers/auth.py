@@ -49,19 +49,6 @@ async def callback(
     return frontend_redirect()
 
 
-@router.get("/me")
-async def me(
-    http: AsyncClient = Depends(get_http_client),
-    access_token: str = Depends(get_access_token),
-) -> SpotifyUser:
-    try:
-        return await spotify.get_current_user(http, access_token)
-    except spotify.SpotifyAPIError as e:
-        if e.status_code == 401:
-            raise HTTPException(status_code=401, detail="session expired")
-        raise HTTPException(status_code=502, detail="Spotify request failed")
-
-
 @router.post("/logout")
 async def logout(
     request: Request,

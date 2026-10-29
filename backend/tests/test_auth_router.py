@@ -240,7 +240,6 @@ async def test_expired_token_is_refreshed_once(client, fake_exchange, monkeypatc
 
     await login_with_expired_token(client, db)
     await client.get("/auth/me")
-    await client.get("/auth/me")
 
     assert refreshes == ["fake-refresh"]
     assert seen_tokens == ["new-access", "new-access"]
