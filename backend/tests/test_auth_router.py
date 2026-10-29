@@ -1,11 +1,15 @@
 import httpx
 import pytest
 from urllib.parse import parse_qs, urlparse
+from sqlalchemy import func, select, update
 
 from src.config import settings
+from src.models import StoredSession
 from src.schemas import SpotifyUser, TokenResponse
-from src.services import spotify, token_store
+from src.services import spotify
 
+
+# helper functions
 
 def get_params(url: str) -> dict[str, list[str]]:
     return parse_qs(urlparse(url).query)
@@ -18,6 +22,10 @@ def get_error(url: str) -> str | None:
 async def start_login(client) -> str:
     response = await client.get("/auth/login")
     return get_params(response.headers["location"])["state"][0]
+
+
+def session_count(db) -> int:
+    return db.scalar(select(func.count()).select_from(StoredSession)) or 0
 
 
 @pytest.fixture
@@ -72,7 +80,7 @@ async def test_callback_success_redirects_to_frontend(client, fake_exchange):
     assert fake_exchange == ["fake-code"]
 
 
-async def test_callback_success_saves_tokens(client, fake_exchange):
+async def test_callback_success_saves_tokens(client, fake_exchange, db):
     state = await start_login(client)
 
     response = await client.get(
@@ -82,14 +90,14 @@ async def test_callback_success_saves_tokens(client, fake_exchange):
 
     assert response.status_code == 307
 
-    stored = list(token_store._tokens.values())
+    stored = db.scalars(select(StoredSession)).all()
     assert len(stored) == 1
     assert stored[0].access_token == "fake-access"
     assert stored[0].refresh_token == "fake-refresh"
     assert "session" in client.cookies
 
 
-async def test_callback_wrong_state_is_rejected(client, fake_exchange):
+async def test_callback_wrong_state_is_rejected(client, fake_exchange, db):
     await start_login(client)
 
     response = await client.get(
@@ -100,10 +108,10 @@ async def test_callback_wrong_state_is_rejected(client, fake_exchange):
     assert response.status_code == 307
     assert get_error(response.headers["location"]) == "state_mismatch"
     assert fake_exchange == []
-    assert token_store._tokens == {}
+    assert session_count(db) == 0
 
 
-async def test_callback_without_login_is_rejected(client, fake_exchange):
+async def test_callback_without_login_is_rejected(client, fake_exchange, db):
     response = await client.get(
         "/auth/callback",
         params={"code": "fake-code", "state": "anything"}
@@ -112,10 +120,10 @@ async def test_callback_without_login_is_rejected(client, fake_exchange):
     assert response.status_code == 307
     assert get_error(response.headers["location"]) == "state_mismatch"
     assert fake_exchange == []
-    assert token_store._tokens == {}
+    assert session_count(db) == 0
 
 
-async def test_callback_cancelled_redirects_to_frontend(client, fake_exchange):
+async def test_callback_cancelled_redirects_to_frontend(client, fake_exchange, db):
     state = await start_login(client)
 
     response = await client.get(
@@ -127,10 +135,10 @@ async def test_callback_cancelled_redirects_to_frontend(client, fake_exchange):
     assert response.headers["location"].startswith(settings.frontend_url)
     assert get_error(response.headers["location"]) == "access_denied"
     assert fake_exchange == []
-    assert token_store._tokens == {}
+    assert session_count(db) == 0
 
 
-async def test_callback_missing_code_is_rejected(client, fake_exchange):
+async def test_callback_missing_code_is_rejected(client, fake_exchange, db):
     state = await start_login(client)
 
     response = await client.get(
@@ -141,7 +149,7 @@ async def test_callback_missing_code_is_rejected(client, fake_exchange):
     assert response.status_code == 307
     assert get_error(response.headers["location"]) == "missing_code"
     assert fake_exchange == []
-    assert token_store._tokens == {}
+    assert session_count(db) == 0
 
 
 async def test_callback_spotify_server_error_returns_502(client, monkeypatch):
@@ -197,16 +205,17 @@ async def test_me_without_login_returns_401(client):
 
 # token refresh tests
 
-async def login_with_expired_token(client):
+async def login_with_expired_token(client, db):
     state = await start_login(client)
     await client.get(
         "/auth/callback",
         params={"code": "fake-code", "state": state}
     )
-    next(iter(token_store._tokens.values())).expires_at = 0
+    db.execute(update(StoredSession).values(expires_at=0))
+    db.commit()
 
 
-async def test_expired_token_is_refreshed_once(client, fake_exchange, monkeypatch):
+async def test_expired_token_is_refreshed_once(client, fake_exchange, monkeypatch, db):
     refreshes = []
     seen_tokens = []
 
@@ -229,7 +238,7 @@ async def test_expired_token_is_refreshed_once(client, fake_exchange, monkeypatc
     monkeypatch.setattr(spotify, "refresh_access_token", fake_refresh)
     monkeypatch.setattr(spotify, "get_current_user", fake_get_current_user)
 
-    await login_with_expired_token(client)
+    await login_with_expired_token(client, db)
     await client.get("/auth/me")
     await client.get("/auth/me")
 
@@ -237,28 +246,28 @@ async def test_expired_token_is_refreshed_once(client, fake_exchange, monkeypatc
     assert seen_tokens == ["new-access", "new-access"]
 
 
-async def test_rejected_refresh_logs_out(client, fake_exchange, monkeypatch):
+async def test_rejected_refresh_logs_out(client, fake_exchange, monkeypatch, db):
     async def failing_refresh(http, refresh_token):
         raise spotify.SpotifyAPIError(
             "refresh access token", 400, "invalid_grant")
 
     monkeypatch.setattr(spotify, "refresh_access_token", failing_refresh)
 
-    await login_with_expired_token(client)
+    await login_with_expired_token(client, db)
     response = await client.get("/auth/me")
 
     assert response.status_code == 401
-    assert token_store._tokens == {}
+    assert session_count(db) == 0
 
 
 # auth logout test
 
-async def test_logout_ends_session(client, fake_exchange):
+async def test_logout_ends_session(client, fake_exchange, db):
     state = await start_login(client)
     await client.get("/auth/callback", params={"code": "fake-code", "state": state})
 
     response = await client.post("/auth/logout")
 
     assert response.status_code == 200
-    assert token_store._tokens == {}
+    assert session_count(db) == 0
     assert (await client.get("/auth/me")).status_code == 401
