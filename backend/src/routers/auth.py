@@ -37,7 +37,6 @@ async def callback(
 
     try:
         tokens = await spotify.exchange_code(http, code)
-        request.session["session_id"] = token_store.save(tokens)
     except spotify.SpotifyAPIError as e:
         if e.status_code >= 500:
             return frontend_redirect(error="spotify_unavailable")

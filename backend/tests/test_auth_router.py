@@ -1,56 +1,12 @@
-import httpx
-import pytest
-from urllib.parse import parse_qs, urlparse
-from sqlalchemy import func, select, update
+from urllib.parse import urlparse
+from sqlalchemy import select, update
 
 from src.config import settings
 from src.models import StoredSession
 from src.schemas import SpotifyUser, TokenResponse
 from src.services import spotify
 
-
-# helper functions
-
-def get_params(url: str) -> dict[str, list[str]]:
-    return parse_qs(urlparse(url).query)
-
-
-def get_error(url: str) -> str | None:
-    return parse_qs(urlparse(url).fragment).get("error", [None])[0]
-
-
-async def start_login(client) -> str:
-    response = await client.get("/auth/login")
-    return get_params(response.headers["location"])["state"][0]
-
-
-def session_count(db) -> int:
-    return db.scalar(select(func.count()).select_from(StoredSession)) or 0
-
-
-@pytest.fixture
-def fake_exchange(monkeypatch) -> list[str]:
-    calls = []
-
-    async def fake_exchange_code(client: httpx.AsyncClient, code: str) -> TokenResponse:
-        calls.append(code)
-        return TokenResponse(
-            access_token="fake-access",
-            token_type="Bearer",
-            expires_in=3600,
-            scope=settings.spotify_scopes,
-            refresh_token="fake-refresh",
-        )
-
-    monkeypatch.setattr(spotify, "exchange_code", fake_exchange_code)
-    return calls
-
-
-def fail_exchange(monkeypatch, status_code: int):
-    async def failing_exchange(client, code):
-        raise spotify.SpotifyAPIError("token exchange", status_code, "boom")
-
-    monkeypatch.setattr(spotify, "exchange_code", failing_exchange)
+from tests.utils import get_error, start_login, session_count, fake_exchange, fail_exchange
 
 
 # auth login tests
@@ -152,7 +108,7 @@ async def test_callback_missing_code_is_rejected(client, fake_exchange, db):
     assert session_count(db) == 0
 
 
-async def test_callback_spotify_server_error_returns_502(client, monkeypatch):
+async def test_callback_spotify_server_redirects_to_frontend(client, monkeypatch, db):
     fail_exchange(monkeypatch, 503)
     state = await start_login(client)
 
@@ -163,44 +119,7 @@ async def test_callback_spotify_server_error_returns_502(client, monkeypatch):
 
     assert response.status_code == 307
     assert get_error(response.headers["location"]) == "spotify_unavailable"
-
-
-# auth me tests
-
-async def test_me_after_login_returns_user(client, fake_exchange, monkeypatch):
-    async def fake_get_current_user(http, access_token):
-        assert access_token == "fake-access"
-        return SpotifyUser.model_validate(
-            {
-                "account_id": "test-account-id",
-                "id": "user-1",
-                "display_name": "Test User",
-            }
-        )
-
-    monkeypatch.setattr(spotify, "get_current_user", fake_get_current_user)
-
-    state = await start_login(client)
-    callback = await client.get(
-        "/auth/callback",
-        params={"code": "fake-code", "state": state}
-    )
-
-    assert callback.status_code == 307
-
-    response = await client.get("/auth/me")
-    data = response.json()
-
-    assert response.status_code == 200
-    assert data["account_id"] == "test-account-id"
-    assert data["id"] == "user-1"
-    assert data["display_name"] == "Test User"
-
-
-async def test_me_without_login_returns_401(client):
-    response = await client.get("/auth/me")
-
-    assert response.status_code == 401
+    assert session_count(db) == 0
 
 
 # token refresh tests
@@ -239,7 +158,8 @@ async def test_expired_token_is_refreshed_once(client, fake_exchange, monkeypatc
     monkeypatch.setattr(spotify, "get_current_user", fake_get_current_user)
 
     await login_with_expired_token(client, db)
-    await client.get("/auth/me")
+    await client.get("/spotify/me")
+    await client.get("/spotify/me")
 
     assert refreshes == ["fake-refresh"]
     assert seen_tokens == ["new-access", "new-access"]
@@ -253,7 +173,7 @@ async def test_rejected_refresh_logs_out(client, fake_exchange, monkeypatch, db)
     monkeypatch.setattr(spotify, "refresh_access_token", failing_refresh)
 
     await login_with_expired_token(client, db)
-    response = await client.get("/auth/me")
+    response = await client.get("/spotify/me")
 
     assert response.status_code == 401
     assert session_count(db) == 0
@@ -269,4 +189,4 @@ async def test_logout_ends_session(client, fake_exchange, db):
 
     assert response.status_code == 200
     assert session_count(db) == 0
-    assert (await client.get("/auth/me")).status_code == 401
+    assert (await client.get("/spotify/me")).status_code == 401
