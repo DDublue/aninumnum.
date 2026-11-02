@@ -5,7 +5,7 @@ from src.config import settings
 
 
 def frontend_redirect(**params) -> RedirectResponse:
-    url = settings.frontend_url
+    url = settings.frontend_url.rstrip("/") + "/"
     if params:
-        url = url + "/#".rstrip("/") + urlencode(params)
+        url += "#" + urlencode(params)
     return RedirectResponse(url)

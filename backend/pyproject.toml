@@ -17,6 +17,7 @@ dependencies = [
     "certifi==2026.7.22",
     "click==8.5.0",
     "coverage==7.16.2",
+    "cryptography>=50.0.2",
     "detect-installer==0.2.1",
     "dnspython==2.8.0",
     "email-validator==2.3.0",
@@ -79,5 +80,7 @@ env = [
     "SPOTIFY_CLIENT_SECRET=test-client-secret",
     "SESSION_SECRET_KEY=test-session-secret",
     "SPOTIFY_REDIRECT_URI=http://127.0.0.1:8000/auth/callback",
+    "SESSION_HTTPS_ONLY=false",
     "DATABASE_URL=sqlite://",
+    "TOKEN_ENCRYPTION_KEY=MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDE=",
 ]

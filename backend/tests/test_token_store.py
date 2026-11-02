@@ -1,3 +1,5 @@
+from sqlalchemy import text
+
 from src.schemas import TokenResponse
 from src.services import token_store
 
@@ -19,6 +21,18 @@ def test_is_expired_respects_buffer(monkeypatch):
     
     assert not tokens.is_expired()
     assert tokens.is_expired(buffer=60)
+
+
+def test_tokens_are_encrypted_at_rest(db):
+    session_id = token_store.save(make_tokens(access_token="secret-a", refresh_token="secret-r"))
+
+    raw = db.execute(text("SELECT access_token, refresh_token FROM session")).one()
+
+    assert "secret" not in raw.access_token
+    assert "secret" not in raw.refresh_token
+    stored = token_store.get(session_id)
+    assert stored is not None
+    assert stored.access_token == "secret-a"
 
 
 # saving tokens tests

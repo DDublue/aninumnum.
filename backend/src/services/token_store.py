@@ -1,10 +1,42 @@
+import asyncio
 import secrets
 import time
+from cryptography.fernet import InvalidToken
 from dataclasses import dataclass
+from sqlalchemy import delete as sql_delete, select
+from sqlalchemy.orm import Session
 
+from src.config import settings
 from src.db import SessionLocal
 from src.models import StoredSession
 from src.schemas import TokenResponse
+
+
+_locks: dict[str, asyncio.Lock] = {}
+
+
+def lock(session_id: str) -> asyncio.Lock:
+    return _locks.setdefault(session_id, asyncio.Lock())
+
+
+# helper functions
+
+def _purge_stale(db: Session) -> None:
+    cutoff = _now() - settings.session_ttl_seconds
+    stale = db.scalars(
+        select(StoredSession.session_id)
+            .where(StoredSession.last_used_at < cutoff)
+    ).all()
+    if not stale:
+        return
+    
+    db.execute(
+        sql_delete(StoredSession)
+            .where(StoredSession.session_id.in_(stale))
+    )
+    for session_id in stale:
+        _locks.pop(session_id, None)
+
 
 
 @dataclass(frozen=True)
@@ -34,6 +66,7 @@ def save(tokens: TokenResponse) -> str:
     current_time = _now()
     
     with SessionLocal() as db:
+        _purge_stale(db)
         db.add(
             StoredSession(
                 session_id=session_id,
@@ -54,7 +87,14 @@ def get(session_id: str | None) -> StoredTokens | None:
         return None
     
     with SessionLocal() as db:
-        row = db.get(StoredSession, session_id)
+        try:
+            row = db.get(StoredSession, session_id)
+        except InvalidToken:
+            # encrypted with a different key, so this login can't be used
+            db.execute(sql_delete(StoredSession).where(StoredSession.session_id == session_id))
+            db.commit()
+            return None
+
         if row is None:
             return None
         
@@ -81,8 +121,10 @@ def delete(session_id: str | None) -> None:
     if not session_id:
         return None
     
+    _locks.pop(session_id, None)
     with SessionLocal() as db:
-        row = db.get(StoredSession, session_id)
-        if row is not None:
-            db.delete(row)
-            db.commit()
+        db.execute(
+            sql_delete(StoredSession)
+                .where(StoredSession.session_id == session_id)
+        )
+        db.commit()

@@ -16,9 +16,12 @@ class Settings(BaseSettings):
     spotify_redirect_uri: str
     spotify_scopes: str = "playlist-modify-private playlist-modify-public"
 
+    session_ttl_seconds: int = 14 * 24 * 3600
+    token_encryption_key: str
+
     frontend_url: str = "http://127.0.0.1:5173"
     cors_origins: list[str] = ["http://127.0.0.1:5173"]
-    environment: str = "local"
+    session_https_only: bool = True
 
     database_url: str = f"sqlite:///{BACKEND_DIR / "aninumnum.db"}"
 

@@ -127,6 +127,19 @@ async def test_exchange_code_network_error_is_503(http):
     assert exc_info.value.status_code == 503
     
 
+@respx.mock
+async def test_malformed_token_response_does_not_leak_tokens(http):
+    respx.post(spotify.TOKEN_URL).mock(
+        return_value=Response(200, text='{"access_token":"secret-access"')
+    )
+
+    with pytest.raises(spotify.SpotifyAPIError) as exc_info:
+        await spotify.exchange_code(http, "fake-code")
+
+    assert exc_info.value.status_code == 502
+    assert "secret-access" not in str(exc_info.value)
+
+
 # refresh_access_token tests
 
 @respx.mock
@@ -138,7 +151,7 @@ async def test_refresh_access_token_sends_correct_body(http):
         )
     )
 
-    tokens = await spotify.refresh_access_token(http, "old-refresh")
+    await spotify.refresh_access_token(http, "old-refresh")
 
     body = parse_qs(route.calls.last.request.content.decode())
     assert body["grant_type"] == ["refresh_token"]

@@ -179,6 +179,19 @@ async def test_rejected_refresh_logs_out(client, fake_exchange, monkeypatch, db)
     assert session_count(db) == 0
 
 
+async def test_rate_limited_refresh_keeps_session(client, fake_exchange, monkeypatch, db):
+    async def limited(http, refresh_token):
+        raise spotify.SpotifyAPIError("refresh access token", 429, "slow down")
+
+    monkeypatch.setattr(spotify, "refresh_access_token", limited)
+
+    await login_with_expired_token(client, db)
+    response = await client.get("/spotify/me")
+
+    assert response.status_code == 503
+    assert session_count(db) == 1
+    
+
 # auth logout test
 
 async def test_logout_ends_session(client, fake_exchange, db):
@@ -187,6 +200,7 @@ async def test_logout_ends_session(client, fake_exchange, db):
 
     response = await client.post("/auth/logout")
 
-    assert response.status_code == 200
+    assert response.status_code == 204
+    assert response.content == b""
     assert session_count(db) == 0
     assert (await client.get("/spotify/me")).status_code == 401
