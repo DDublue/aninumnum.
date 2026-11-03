@@ -21,13 +21,13 @@ async def test_me_after_login_returns_user(client, fake_exchange, monkeypatch):
 
     state = await start_login(client)
     callback = await client.get(
-        "/auth/callback",
+        "/api/auth/callback",
         params={"code": "fake-code", "state": state}
     )
 
     assert callback.status_code == 307
 
-    response = await client.get("/spotify/me")
+    response = await client.get("/api/spotify/me")
     data = response.json()
 
     assert response.status_code == 200
@@ -37,7 +37,7 @@ async def test_me_after_login_returns_user(client, fake_exchange, monkeypatch):
 
 
 async def test_me_without_login_returns_401(client):
-    response = await client.get("/spotify/me")
+    response = await client.get("/api/spotify/me")
 
     assert response.status_code == 401
 

@@ -21,7 +21,7 @@ def get_error(url: str) -> str | None:
 
 
 async def start_login(client) -> str:
-    response = await client.get("/auth/login")
+    response = await client.get("/api/auth/login")
     return get_params(response.headers["location"])["state"][0]
 
 

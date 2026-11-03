@@ -1,17 +1,12 @@
-import Header from '../components/shared/Header'
-import Footer from '../components/shared/Footer'
+// import { useState } from 'react'
 
 const HomePage = () => {
+  // const [isExpanded, setIsExpanded] = useState(false)
+
   return (
-    <>
-      <body className="relative min-h-svh flex flex-col">
-        <Header />
-        <main className="min-h-svh flex-1 w-full bg-background">
-          Hello World!
-        </main>
-        <Footer />
-      </body>
-    </>
+    <div className="">
+      Hello World!
+    </div>
   )
 }
 

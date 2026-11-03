@@ -79,7 +79,7 @@ env = [
     "SPOTIFY_CLIENT_ID=test-client-id",
     "SPOTIFY_CLIENT_SECRET=test-client-secret",
     "SESSION_SECRET_KEY=test-session-secret",
-    "SPOTIFY_REDIRECT_URI=http://127.0.0.1:8000/auth/callback",
+    "SPOTIFY_REDIRECT_URI=http://127.0.0.1:8000/api/auth/callback",
     "SESSION_HTTPS_ONLY=false",
     "DATABASE_URL=sqlite://",
     "TOKEN_ENCRYPTION_KEY=MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDE=",

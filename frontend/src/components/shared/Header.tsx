@@ -1,15 +1,14 @@
-import { Button } from "../ui/button"
+import { Link } from "react-router"
+import { buttonVariants } from "../ui/button"
 
 const Header = () => {
   return (
-    <>
-      <header className="flex items-center justify-between px-6 py-4 border-b-border bg-neutral-light">
-        <h1 className="text-xl font-bold">
-          aninumnum
-        </h1>
-        <Button>Login</Button>
-      </header>
-    </>
+    <header className="border-b bg-neutral-light border-secondary-foreground/20">
+      <div className="flex items-center justify-between max-w-7xl mx-auto px-4 py-4">
+        <Link to="/" className="text-xl font-bold">aninumnum</Link>
+        <a href="/api/auth/login" className={buttonVariants({ variant: "spotify" })}>Login</a>
+      </div>
+    </header>
   )
 }
 

@@ -1,7 +1,7 @@
 import httpx
 import logging
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request
+from fastapi import APIRouter, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.middleware.sessions import SessionMiddleware
@@ -41,8 +41,15 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    app.include_router(auth.router)
-    app.include_router(spotify.router)
+    api = APIRouter(prefix="/api")
+    api.include_router(auth.router)
+    api.include_router(spotify.router)
+
+    @api.get("/health")
+    async def health_check():
+        return {"status": "ok"}
+
+    app.include_router(api)
 
     @app.exception_handler(spotify_service.SpotifyAPIError)
     async def spotify_error(
@@ -56,10 +63,6 @@ def create_app() -> FastAPI:
         if e.status_code == 429:
             return JSONResponse({"detail": "rate limited"}, status_code=503)
         return JSONResponse({"detail": "Spotify request failed"}, status_code=502)
-
-    @app.get("/health")
-    async def health_check():
-        return {"status": "ok"}
 
     return app
 

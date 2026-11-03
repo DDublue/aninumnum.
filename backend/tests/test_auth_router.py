@@ -12,7 +12,7 @@ from tests.utils import get_error, start_login, session_count, fake_exchange, fa
 # auth login tests
 
 async def test_login_redirects_to_spotify(client):
-    response = await client.get("/auth/login")
+    response = await client.get("/api/auth/login")
     location = urlparse(response.headers["location"])
 
     assert response.status_code == 307
@@ -26,7 +26,7 @@ async def test_callback_success_redirects_to_frontend(client, fake_exchange):
     state = await start_login(client)
 
     response = await client.get(
-        "/auth/callback",
+        "/api/auth/callback",
         params={"code": "fake-code", "state": state}
     )
 
@@ -40,7 +40,7 @@ async def test_callback_success_saves_tokens(client, fake_exchange, db):
     state = await start_login(client)
 
     response = await client.get(
-        "/auth/callback",
+        "/api/auth/callback",
         params={"code": "fake-code", "state": state}
     )
 
@@ -57,7 +57,7 @@ async def test_callback_wrong_state_is_rejected(client, fake_exchange, db):
     await start_login(client)
 
     response = await client.get(
-        "/auth/callback",
+        "/api/auth/callback",
         params={"code": "fake-code", "state": "wrong"}
     )
 
@@ -69,7 +69,7 @@ async def test_callback_wrong_state_is_rejected(client, fake_exchange, db):
 
 async def test_callback_without_login_is_rejected(client, fake_exchange, db):
     response = await client.get(
-        "/auth/callback",
+        "/api/auth/callback",
         params={"code": "fake-code", "state": "anything"}
     )
 
@@ -83,7 +83,7 @@ async def test_callback_cancelled_redirects_to_frontend(client, fake_exchange, d
     state = await start_login(client)
 
     response = await client.get(
-        "/auth/callback",
+        "/api/auth/callback",
         params={"error": "access_denied", "state": state}
     )
 
@@ -98,7 +98,7 @@ async def test_callback_missing_code_is_rejected(client, fake_exchange, db):
     state = await start_login(client)
 
     response = await client.get(
-        "/auth/callback",
+        "/api/auth/callback",
         params={"state": state}
     )
 
@@ -113,7 +113,7 @@ async def test_callback_spotify_server_redirects_to_frontend(client, monkeypatch
     state = await start_login(client)
 
     response = await client.get(
-        "/auth/callback",
+        "/api/auth/callback",
         params={"code": "fake-code", "state": state}
     )
 
@@ -127,7 +127,7 @@ async def test_callback_spotify_server_redirects_to_frontend(client, monkeypatch
 async def login_with_expired_token(client, db):
     state = await start_login(client)
     await client.get(
-        "/auth/callback",
+        "/api/auth/callback",
         params={"code": "fake-code", "state": state}
     )
     db.execute(update(StoredSession).values(expires_at=0))
@@ -158,8 +158,8 @@ async def test_expired_token_is_refreshed_once(client, fake_exchange, monkeypatc
     monkeypatch.setattr(spotify, "get_current_user", fake_get_current_user)
 
     await login_with_expired_token(client, db)
-    await client.get("/spotify/me")
-    await client.get("/spotify/me")
+    await client.get("/api/spotify/me")
+    await client.get("/api/spotify/me")
 
     assert refreshes == ["fake-refresh"]
     assert seen_tokens == ["new-access", "new-access"]
@@ -173,7 +173,7 @@ async def test_rejected_refresh_logs_out(client, fake_exchange, monkeypatch, db)
     monkeypatch.setattr(spotify, "refresh_access_token", failing_refresh)
 
     await login_with_expired_token(client, db)
-    response = await client.get("/spotify/me")
+    response = await client.get("/api/spotify/me")
 
     assert response.status_code == 401
     assert session_count(db) == 0
@@ -186,7 +186,7 @@ async def test_rate_limited_refresh_keeps_session(client, fake_exchange, monkeyp
     monkeypatch.setattr(spotify, "refresh_access_token", limited)
 
     await login_with_expired_token(client, db)
-    response = await client.get("/spotify/me")
+    response = await client.get("/api/spotify/me")
 
     assert response.status_code == 503
     assert session_count(db) == 1
@@ -196,11 +196,11 @@ async def test_rate_limited_refresh_keeps_session(client, fake_exchange, monkeyp
 
 async def test_logout_ends_session(client, fake_exchange, db):
     state = await start_login(client)
-    await client.get("/auth/callback", params={"code": "fake-code", "state": state})
+    await client.get("/api/auth/callback", params={"code": "fake-code", "state": state})
 
-    response = await client.post("/auth/logout")
+    response = await client.post("/api/auth/logout")
 
     assert response.status_code == 204
     assert response.content == b""
     assert session_count(db) == 0
-    assert (await client.get("/spotify/me")).status_code == 401
+    assert (await client.get("/api/spotify/me")).status_code == 401
