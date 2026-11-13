@@ -1,5 +1,5 @@
 import { Routes, Route } from 'react-router'
-import HomePage from './pages/Homepage'
+import HomePage from './pages/HomePage'
 import Layout from './layouts/MainLayout'
 
 function App() {
